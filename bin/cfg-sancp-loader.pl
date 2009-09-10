@@ -37,9 +37,13 @@ our $HOSTNAME      = q();
 my  $SDIR          = q(/nsm_data/hostname/sancp/);
 my  $LOGFILE       = q(/var/log/fpc-sancp-loader.log);
 my  $PIDFILE       = q(/var/run/fpc-sancp-loader.pid);
-our $DATABASE      = q(dbi:SQLite:dbname=prads.db);
-our $DB_USERNAME;
-our $DB_PASSWORD;
+#our $DATABASE      = q(dbi:SQLite:dbname=fpcgui.db);
+our $DB_NAME       = q(fpcgui);
+our $DB_HOST       = q(127.0.0.1);
+our $DB_PORT       = q(3306);
+our $DB_USERNAME   = "fpcgui";
+our $DB_PASSWORD   = "fpcgui";
+our $DATABASE      = q(dbi:mysql:$DB_NAME:$dbhost:$dbport);
 our $AUTOCOMMIT    = 0;
 my $SANCP_DB       = {};
 
@@ -56,11 +60,11 @@ $SIG{"INT"}   = sub { game_over() };
 $SIG{"TERM"}  = sub { game_over() };
 $SIG{"QUIT"}  = sub { game_over() };
 $SIG{"KILL"}  = sub { game_over() };
-$SIG{"ALRM"}  = sub { end_sessions(); alarm $TIMEOUT; };
+#$SIG{"ALRM"}  = sub { end_sessions(); alarm $TIMEOUT; };
 
 warn "Starting fpc-sancp-loader.pl...\n";
 warn "Setting up database ". $DATABASE ."\n" if ($DEBUG > 0);
-$OS_SYN_DB = setup_db($DATABASE,$DB_USERNAME,$DB_PASSWORD);
+$SANCP_DB = setup_db($DATABASE,$DB_USERNAME,$DB_PASSWORD);
 warn "Looking for session data in: $SDIR \n" if $DEBUG;
 
 # Prepare to meet the world of Daemons
@@ -177,7 +181,8 @@ sub put_session2db {
 
 =head2 setup_db
 
- Load persistent database
+ Create todays table (sancp_hostname_date) and find
+ all the sancp_* tables and makes the initial mysql merge 
 
 =cut
 
@@ -185,17 +190,16 @@ sub setup_db {
    my ($db,$user,$password) = @_;
    # sancp_hostname_20090827
    # $allsancptables= SHOW TABLES LIKE 'sancp_%'
-   my $tablename = "sancp_$sensor_$date";
+   my $sensor = q(fpc-sensor1);
+   my $date = q(20090910);
+   my $tablename = "sancp_$sensor" . "_$date";
    my $print_error = $DEBUG ? 1 : 0;
    my $dbh = DBI->connect($db,$user,$password,
                           {AutoCommit => $AUTOCOMMIT,
                           RaiseError => 1, PrintError=> $print_error});
    my ($sql, $sth);
    eval{
-#      $sql = "CREATE TABLE asset (ip TEXT, service TEXT, time TEXT, fingerprint TEXT,".
-#         "mac TEXT, os TEXT, details TEXT, link TEXT, distance TEXT, reporting TEXT)";
-
-       $sql = "                                            \
+      $sql = "                                             \
         CREATE TABLE `$tablename`                          \
         (                                                  \
         sid           INT UNSIGNED            NOT NULL,    \
@@ -221,17 +225,55 @@ sub setup_db {
         INDEX src_port (src_port),                         \
         INDEX start_time (start_time)                      \
         )                                                  \
-        "
+      ";
 
       $sth = $dbh->prepare($sql);
       $sth->execute;
    };
-   if($DEBUG){
-      $sql = "SELECT * from asset";
-      $sth = $dbh->prepare($sql) or die "foo $!";
-      $sth->execute or die "$!";
-      $sth->dump_results;
-   }
+   eval{
+      my $allsancptables = "SHOW TABLES LIKE `sancp_%`";
+      my $sth2 = my $dbh2->prepare($allsancptables);
+      $sth2->execute;
+      # This should be true, we just created one!
+      if ($sth2->rows > 0) {
+         my @resarray=$sth2->fetchrow_array;
+         my $merge = "                                      \
+         CREATE TABLE sancp                                 \
+         (                                                  \
+         sid           INT UNSIGNED            NOT NULL,    \
+         sancpid       BIGINT UNSIGNED         NOT NULL,    \
+         start_time    DATETIME                NOT NULL,    \
+         end_time      DATETIME                NOT NULL,    \
+         duration      INT UNSIGNED            NOT NULL,    \
+         ip_proto      TINYINT UNSIGNED        NOT NULL,    \
+         src_ip        INT UNSIGNED,                        \
+         src_port      SMALLINT UNSIGNED,                   \
+         dst_ip        INT UNSIGNED,                        \
+         dst_port      SMALLINT UNSIGNED,                   \
+         src_pkts      INT UNSIGNED            NOT NULL,    \
+         src_bytes     INT UNSIGNED            NOT NULL,    \
+         dst_pkts      INT UNSIGNED            NOT NULL,    \
+         dst_bytes     INT UNSIGNED            NOT NULL,    \
+         src_flags     TINYINT UNSIGNED        NOT NULL,    \
+         dst_flags     TINYINT UNSIGNED        NOT NULL,    \
+         INDEX p_key (sid,sancpid),                         \
+         INDEX src_ip (src_ip),                             \
+         INDEX dst_ip (dst_ip),                             \
+         INDEX dst_port (dst_port),                         \
+         INDEX src_port (src_port),                         \
+         INDEX start_time (start_time)                      \
+         ) TYPE=MERGE UNION=([join @resarray ,])            \
+         ";
+      }else{
+         die "Merge table failed: $!\n";
+      }
+   };
+#   if($DEBUG){
+#      $sql = "SELECT * from asset";
+#      $sth = $dbh->prepare($sql) or die "foo $!";
+#      $sth->execute or die "$!";
+#      $sth->dump_results;
+#   }
    return $dbh;
 }
 
