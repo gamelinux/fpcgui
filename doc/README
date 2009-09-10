@@ -1,0 +1,18 @@
+# Full Packet Capture GUI
+#########################
+
+FPCGUI is a frontend to handle packet captures.
+Its aim is for Network Security Monitoring who wants to
+have a non-commersial cheap storrage for doing Network Forensics.
+
+It is built on daemonlogger (A great packet capture daemon by Martin Roesch)
+and sancp (Security Analyst Network Connection Profiler).
+
+daemonlogger is responsable for dumping pcaps to disk.
+sancp indexes connections, making them searchable.
+(sancp stores data in mysql or alike)
+	(apache + php is used for gui)
+
+
+Carving:
+/usr/sbin/tcpdump -r /nsm_data/hostname/dailylogs/2009-09-09/snort.log.1251338461 -w /tmp/80.30.200.100:56640_74.50.87.122:80-6.raw host 74.50.87.122 and host 80.30.200.100 and port 80 and port 56640 and proto 6
