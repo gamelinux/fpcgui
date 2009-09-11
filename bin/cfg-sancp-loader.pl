@@ -37,7 +37,6 @@ our $HOSTNAME      = q();
 my  $SDIR          = q(/nsm_data/hostname/sancp/);
 my  $LOGFILE       = q(/var/log/fpc-sancp-loader.log);
 my  $PIDFILE       = q(/var/run/fpc-sancp-loader.pid);
-#our $DATABASE      = q(dbi:SQLite:dbname=fpcgui.db);
 our $DB_NAME       = "fpcgui";
 our $DB_HOST       = "127.0.0.1";
 our $DB_PORT       = "3306";
@@ -60,7 +59,7 @@ $SIG{"INT"}   = sub { game_over() };
 $SIG{"TERM"}  = sub { game_over() };
 $SIG{"QUIT"}  = sub { game_over() };
 $SIG{"KILL"}  = sub { game_over() };
-#$SIG{"ALRM"}  = sub { end_sessions(); alarm $TIMEOUT; };
+#$SIG{"ALRM"}  = sub { dir_watch(); alarm $TIMEOUT; };
 
 warn "Starting fpc-sancp-loader.pl...\n";
 warn "Connecting to database...\n";
@@ -194,10 +193,8 @@ sub setup_db {
    new_sancp_table($hostname,$date);
    delete_merged_sancp_table();
    my $sancptables = find_sancp_tables();
-   use Data::Dumper;
-   print "FOUND tables " . Dumper ($sancptables) . "\n";
-#   merge_sancp_tables($sancptables);
-
+   merge_sancp_tables($sancptables);
+   return;
 #   if($DEBUG){
 #      $sql = "SELECT * from asset";
 #      $sth = $dbh->prepare($sql) or die "foo $!";
@@ -216,9 +213,6 @@ sub setup_db {
 sub new_sancp_table {
    my ($HOSTNAME, $DATE) = @_;
    my $tablename = "sancp_" . "$HOSTNAME" . "_" . "$DATE";
-#   my $dbh = DBI->connect($SANCP_DB,$DB_USERNAME,$DB_PASSWORD,
-#                          {AutoCommit => $AUTOCOMMIT,
-#                          RaiseError => 1, PrintError=> $print_error});
    my ($sql, $sth);
    eval{
       $sql = "                                             \
@@ -250,9 +244,8 @@ sub new_sancp_table {
       ";
       $sth = $dbh->prepare($sql);
       $sth->execute;
+      $sth->finish;
    };
-   print "EY\n";
-   #return $dbh;
 }
 
 =head2 find_sancp_tables
@@ -262,17 +255,20 @@ sub new_sancp_table {
 =cut
 
 sub find_sancp_tables {
-   #my $allsancptables = "SHOW TABLES LIKE `sancp_%`";
-#   my $dbh = DBI->connect($SANCP_DB,$DB_USERNAME,$DB_PASSWORD,
-#                          {AutoCommit => $AUTOCOMMIT,
-#                          RaiseError => 1, PrintError=> $print_error});
    my ($sql, $sth);
+   my $tables = q();
    eval {
-      $sql = "SHOW TABLES LIKE `sancp_%`";
+      $sql = q(SHOW TABLES LIKE 'sancp_%');
       $sth = $dbh->prepare($sql);
       $sth->execute;
    };
-   return $sth->fetchrow_array;
+   while (my @array = $sth->fetchrow_array) {
+      my $table = $array[0];
+      $tables = "$tables $table,";
+   }
+   $sth->finish;
+   $tables =~ s/,$//;
+   return $tables;;
 }
 
 =head2 delete_merged_sancp_table
@@ -282,18 +278,14 @@ sub find_sancp_tables {
 =cut
 
 sub delete_merged_sancp_table {
-   #"DROP TABLE IF EXISTS sancp"
-#   my $dbh = DBI->connect($SANCP_DB,$DB_USERNAME,$DB_PASSWORD,
-#                          {AutoCommit => $AUTOCOMMIT,
-#                          RaiseError => 1, PrintError=> $print_error});
    my ($sql, $sth);
    eval{
       $sql = "DROP TABLE IF EXISTS sancp";
       $sth = $dbh->prepare($sql);
       $sth->execute;
+      $sth->finish;
    };     
-   print "DROPPED...\n";
-   return;
+   print "Dropped table sancp...\n";
 }
 
 =head2 merge_sancp_tables
@@ -303,47 +295,43 @@ sub delete_merged_sancp_table {
 =cut
 
 sub merge_sancp_tables {
+   my $tables = shift;
+   my ($sql, $sth);
    eval {
       # check for != MRG_MyISAM - exit
-      my $allsancptables = "SHOW TABLES LIKE `sancp_%`";
-      my $sth2 = my $dbh2->prepare($allsancptables);
-      $sth2->execute;
-      # This should be true, we just created one!
-      if ($sth2->rows > 0) {
-         my @resarray=$sth2->fetchrow_array;
-         warn "Creating sancp MERGE table\n";
-         my $merge = "                                      \
-         CREATE TABLE sancp                                 \
-         (                                                  \
-         sid           INT UNSIGNED            NOT NULL,    \
-         sancpid       BIGINT UNSIGNED         NOT NULL,    \
-         start_time    DATETIME                NOT NULL,    \
-         end_time      DATETIME                NOT NULL,    \
-         duration      INT UNSIGNED            NOT NULL,    \
-         ip_proto      TINYINT UNSIGNED        NOT NULL,    \
-         src_ip        INT UNSIGNED,                        \
-         src_port      SMALLINT UNSIGNED,                   \
-         dst_ip        INT UNSIGNED,                        \
-         dst_port      SMALLINT UNSIGNED,                   \
-         src_pkts      INT UNSIGNED            NOT NULL,    \
-         src_bytes     INT UNSIGNED            NOT NULL,    \
-         dst_pkts      INT UNSIGNED            NOT NULL,    \
-         dst_bytes     INT UNSIGNED            NOT NULL,    \
-         src_flags     TINYINT UNSIGNED        NOT NULL,    \
-         dst_flags     TINYINT UNSIGNED        NOT NULL,    \
-         INDEX p_key (sid,sancpid),                         \
-         INDEX src_ip (src_ip),                             \
-         INDEX dst_ip (dst_ip),                             \
-         INDEX dst_port (dst_port),                         \
-         INDEX src_port (src_port),                         \
-         INDEX start_time (start_time)                      \
-         ) TYPE=MERGE UNION=([join @resarray ,])            \
-         ";
-      }else{
-         die "Merge table failed: $!\n";
-      }
-   return;
+      warn "Creating sancp MERGE table\n";
+      my $sql = "                                        \
+      CREATE TABLE sancp                                 \
+      (                                                  \
+      sid           INT UNSIGNED            NOT NULL,    \
+      sancpid       BIGINT UNSIGNED         NOT NULL,    \
+      start_time    DATETIME                NOT NULL,    \
+      end_time      DATETIME                NOT NULL,    \
+      duration      INT UNSIGNED            NOT NULL,    \
+      ip_proto      TINYINT UNSIGNED        NOT NULL,    \
+      src_ip        INT UNSIGNED,                        \
+      src_port      SMALLINT UNSIGNED,                   \
+      dst_ip        INT UNSIGNED,                        \
+      dst_port      SMALLINT UNSIGNED,                   \
+      src_pkts      INT UNSIGNED            NOT NULL,    \
+      src_bytes     INT UNSIGNED            NOT NULL,    \
+      dst_pkts      INT UNSIGNED            NOT NULL,    \
+      dst_bytes     INT UNSIGNED            NOT NULL,    \
+      src_flags     TINYINT UNSIGNED        NOT NULL,    \
+      dst_flags     TINYINT UNSIGNED        NOT NULL,    \
+      INDEX p_key (sid,sancpid),                         \
+      INDEX src_ip (src_ip),                             \
+      INDEX dst_ip (dst_ip),                             \
+      INDEX dst_port (dst_port),                         \
+      INDEX src_port (src_port),                         \
+      INDEX start_time (start_time)                      \
+      ) TYPE=MERGE UNION=($tables)                       \
+      ";
+      $sth = $dbh->prepare($sql);
+      $sth->execute;
+      $sth->finish;
    };
+   return;
 }
 
 =head2 game_over
@@ -356,7 +344,7 @@ sub game_over {
 #    dump_active_sessions();
 #    dump_stats();
     warn " Terminating...\n";
-#   $result=$dbh->disconnect;
+    $dbh->disconnect;
     unlink ($PIDFILE);
     exit 0;
 }
