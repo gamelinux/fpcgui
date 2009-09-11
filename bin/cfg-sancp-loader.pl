@@ -33,7 +33,7 @@ our $VERSION       = 0.1;
 our $DEBUG         = 0;
 our $DAEMON        = 0;
 our $TIMEOUT       = 5;
-our $HOSTNAME      = q();
+our $HOSTNAME      = q(aruba);
 my  $SDIR          = q(/nsm_data/hostname/sancp/);
 my  $LOGFILE       = q(/var/log/fpc-sancp-loader.log);
 my  $PIDFILE       = q(/var/run/fpc-sancp-loader.pid);
@@ -61,14 +61,15 @@ $SIG{"QUIT"}  = sub { game_over() };
 $SIG{"KILL"}  = sub { game_over() };
 #$SIG{"ALRM"}  = sub { dir_watch(); alarm $TIMEOUT; };
 
-warn "Starting fpc-sancp-loader.pl...\n";
+my $DATE = time;
+warn "Starting fpc-sancp-loader.pl... $DATE\n";
 warn "Connecting to database...\n";
 my $dbh = DBI->connect($DBI,$DB_USERNAME,$DB_PASSWORD);
 if ( !$dbh ) {
-   die "There seems to be something wrong...$!\n"
+   die "Fail... $!\n"
 }
+# Make todays table, and initialize the sancp merged table
 setup_db();
-warn "Looking for session data in: $SDIR \n" if $DEBUG;
 
 # Prepare to meet the world of Daemons
 if ( $DAEMON ) {
@@ -89,6 +90,7 @@ if ( $DAEMON ) {
 }
 
 # Start dir_watch() which looks for new sancp session files and put them into db
+warn "Looking for session data in: $SDIR \n" if $DEBUG;
 dir_watch();
 exit;
 
@@ -117,6 +119,7 @@ sub dir_watch {
       }
       foreach my $FILE ( @FILES ) {
          get_sancp_session ("$SDIR$FILE");
+         unlink("$SDIR$FILE"); 
       }
       # Dont pool files to often, or to seldom...
       sleep $TIMEOUT;                    
@@ -150,7 +153,7 @@ sub get_sancp_session {
             next LINE;
          }
          # Things should be OK now to send to the DB
-         put_session2db($line);
+         my $result = put_session2db($line);
     }
       close FILE;
    }
@@ -162,23 +165,52 @@ sub get_sancp_session {
 
 =cut
 
-{
-   # store prepared statements for re-execution
-   my $h_select;
-   my $h_update;
-   my $h_insert;
-   my $records;
-   my $table;
+#{
+#   # store prepared statements for re-execution
+#   my $h_select;
+#   my $h_update;
+#   my $h_insert;
+#   my $records;
+#   my $table;
 
 sub put_session2db {
    my $SESSION = shift;
+   my $tablename = get_table_name();
+   
    my( $cx_id, $s_t, $e_t, $tot_time, $ip_type, $src_dip, $src_port,
        $dst_dip, $dst_port, $src_packets, $src_byte, $dst_packets, $dst_byte, 
        $src_flags, $dst_flags) = split /\|/, $SESSION, 15;
-   
-    
+   my ($sql, $sth);
+   eval{
+      $sql = "                                                  \
+             INSERT INTO $tablename (                           \
+             sid,sancpid,start_time,end_time,duration,ip_proto, \
+             src_ip,src_port,dst_ip,dst_port,src_pkts,src_bytes,\
+             dst_pkts,dst_bytes,src_flags,dst_flags             \
+             ) VALUES (                                         \
+             ?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)";
+      $sth = $dbh->prepare($sql);
+      $sth->bind_param(1, $HOSTNAME);
+      $sth->bind_param(2, $cx_id);
+      $sth->bind_param(3, $s_t);
+      $sth->bind_param(4, $e_t);
+      $sth->bind_param(5, $tot_time);
+      $sth->bind_param(6, $ip_type);
+      $sth->bind_param(7, $src_dip);
+      $sth->bind_param(8, $src_port);
+      $sth->bind_param(9, $dst_dip);
+      $sth->bind_param(10, $dst_port);
+      $sth->bind_param(11, $src_packets);
+      $sth->bind_param(12, $src_byte);
+      $sth->bind_param(13, $dst_packets);
+      $sth->bind_param(14, $dst_byte);
+      $sth->bind_param(15, $src_flags);
+      $sth->bind_param(16, $dst_flags);
+      $sth->execute;
+      $sth->finish;
+   };
 }
-}
+#}
 
 =head2 setup_db
 
@@ -188,9 +220,8 @@ sub put_session2db {
 =cut
 
 sub setup_db {
-   my $date="20090909";
-   my $hostname="aruba";
-   new_sancp_table($hostname,$date);
+   my $tablename = get_table_name();
+   new_sancp_table($tablename);
    delete_merged_sancp_table();
    my $sancptables = find_sancp_tables();
    merge_sancp_tables($sancptables);
@@ -211,12 +242,12 @@ sub setup_db {
 =cut
 
 sub new_sancp_table {
-   my ($HOSTNAME, $DATE) = @_;
-   my $tablename = "sancp_" . "$HOSTNAME" . "_" . "$DATE";
+   my ($tablename) = shift;
+print "$tablename\n";
    my ($sql, $sth);
    eval{
       $sql = "                                             \
-        CREATE TABLE `$tablename`                          \
+        CREATE TABLE $tablename                          \
         (                                                  \
         sid           INT UNSIGNED            NOT NULL,    \
         sancpid       BIGINT UNSIGNED         NOT NULL,    \
@@ -332,6 +363,19 @@ sub merge_sancp_tables {
       $sth->finish;
    };
    return;
+}
+
+=head2 get_table_name
+
+ makes a table name, format: sancp_$HOSTNAME_$DATE
+
+=cut
+
+sub get_table_name {
+   my $DATE = `date --iso`;
+   $DATE =~ s/\-//g;
+   my $tablename = "sancp_" . "$HOSTNAME" . "_" . "$DATE";
+   return $tablename;
 }
 
 =head2 game_over
