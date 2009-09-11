@@ -38,12 +38,12 @@ my  $SDIR          = q(/nsm_data/hostname/sancp/);
 my  $LOGFILE       = q(/var/log/fpc-sancp-loader.log);
 my  $PIDFILE       = q(/var/run/fpc-sancp-loader.pid);
 #our $DATABASE      = q(dbi:SQLite:dbname=fpcgui.db);
-our $DB_NAME       = q(fpcgui);
-our $DB_HOST       = q(127.0.0.1);
-our $DB_PORT       = q(3306);
+our $DB_NAME       = "fpcgui";
+our $DB_HOST       = "127.0.0.1";
+our $DB_PORT       = "3306";
 our $DB_USERNAME   = "fpcgui";
 our $DB_PASSWORD   = "fpcgui";
-our $DATABASE      = q(dbi:mysql:$DB_NAME:$dbhost:$dbport);
+our $DBI           = "DBI:mysql:$DB_NAME:$DB_HOST:$DB_PORT";
 our $AUTOCOMMIT    = 0;
 my $SANCP_DB       = {};
 
@@ -55,7 +55,7 @@ GetOptions(
 
 # Signal handlers
 use vars qw(%sources);
-$SIG{"HUP"}   = \&dump_active_sessions;
+#$SIG{"HUP"}   = \&dir_watch;
 $SIG{"INT"}   = sub { game_over() };
 $SIG{"TERM"}  = sub { game_over() };
 $SIG{"QUIT"}  = sub { game_over() };
@@ -63,8 +63,12 @@ $SIG{"KILL"}  = sub { game_over() };
 #$SIG{"ALRM"}  = sub { end_sessions(); alarm $TIMEOUT; };
 
 warn "Starting fpc-sancp-loader.pl...\n";
-warn "Setting up database ". $DATABASE ."\n" if ($DEBUG > 0);
-$SANCP_DB = setup_db($DATABASE,$DB_USERNAME,$DB_PASSWORD);
+warn "Connecting to database...\n";
+my $dbh = DBI->connect($DBI,$DB_USERNAME,$DB_PASSWORD);
+if ( !$dbh ) {
+   die "There seems to be something wrong...$!\n"
+}
+setup_db();
 warn "Looking for session data in: $SDIR \n" if $DEBUG;
 
 # Prepare to meet the world of Daemons
@@ -149,11 +153,9 @@ sub get_sancp_session {
          # Things should be OK now to send to the DB
          put_session2db($line);
     }
-
       close FILE;
    }
 }
-
 
 =head2 put_session2db
 
@@ -181,22 +183,42 @@ sub put_session2db {
 
 =head2 setup_db
 
- Create todays table (sancp_hostname_date) and find
- all the sancp_* tables and makes the initial mysql merge 
+ Create todays table if it dont exist (sancp_hostname_date).
+ Make a new merge of all sancp_% tables.
 
 =cut
 
 sub setup_db {
-   my ($db,$user,$password) = @_;
-   # sancp_hostname_20090827
-   # $allsancptables= SHOW TABLES LIKE 'sancp_%'
-   my $sensor = q(fpc-sensor1);
-   my $date = q(20090910);
-   my $tablename = "sancp_$sensor" . "_$date";
-   my $print_error = $DEBUG ? 1 : 0;
-   my $dbh = DBI->connect($db,$user,$password,
-                          {AutoCommit => $AUTOCOMMIT,
-                          RaiseError => 1, PrintError=> $print_error});
+   my $date="20090909";
+   my $hostname="aruba";
+   new_sancp_table($hostname,$date);
+   delete_merged_sancp_table();
+   my $sancptables = find_sancp_tables();
+   use Data::Dumper;
+   print "FOUND tables " . Dumper ($sancptables) . "\n";
+#   merge_sancp_tables($sancptables);
+
+#   if($DEBUG){
+#      $sql = "SELECT * from asset";
+#      $sth = $dbh->prepare($sql) or die "foo $!";
+#      $sth->execute or die "$!";
+#      $sth->dump_results;
+#   }
+}
+
+=head2 new_sancp_table
+
+ Creates a new sancp_$hostname_$date table
+ Takes $hostname and $date as input.
+
+=cut
+
+sub new_sancp_table {
+   my ($HOSTNAME, $DATE) = @_;
+   my $tablename = "sancp_" . "$HOSTNAME" . "_" . "$DATE";
+#   my $dbh = DBI->connect($SANCP_DB,$DB_USERNAME,$DB_PASSWORD,
+#                          {AutoCommit => $AUTOCOMMIT,
+#                          RaiseError => 1, PrintError=> $print_error});
    my ($sql, $sth);
    eval{
       $sql = "                                             \
@@ -226,17 +248,70 @@ sub setup_db {
         INDEX start_time (start_time)                      \
         )                                                  \
       ";
-
       $sth = $dbh->prepare($sql);
       $sth->execute;
    };
+   print "EY\n";
+   #return $dbh;
+}
+
+=head2 find_sancp_tables
+ 
+ Find all sancp_% tables
+
+=cut
+
+sub find_sancp_tables {
+   #my $allsancptables = "SHOW TABLES LIKE `sancp_%`";
+#   my $dbh = DBI->connect($SANCP_DB,$DB_USERNAME,$DB_PASSWORD,
+#                          {AutoCommit => $AUTOCOMMIT,
+#                          RaiseError => 1, PrintError=> $print_error});
+   my ($sql, $sth);
+   eval {
+      $sql = "SHOW TABLES LIKE `sancp_%`";
+      $sth = $dbh->prepare($sql);
+      $sth->execute;
+   };
+   return $sth->fetchrow_array;
+}
+
+=head2 delete_merged_sancp_table
+
+ Deletes the sancp merged table if it exists.
+
+=cut
+
+sub delete_merged_sancp_table {
+   #"DROP TABLE IF EXISTS sancp"
+#   my $dbh = DBI->connect($SANCP_DB,$DB_USERNAME,$DB_PASSWORD,
+#                          {AutoCommit => $AUTOCOMMIT,
+#                          RaiseError => 1, PrintError=> $print_error});
+   my ($sql, $sth);
    eval{
+      $sql = "DROP TABLE IF EXISTS sancp";
+      $sth = $dbh->prepare($sql);
+      $sth->execute;
+   };     
+   print "DROPPED...\n";
+   return;
+}
+
+=head2 merge_sancp_tables
+
+ Creates a new sancp merge table
+
+=cut
+
+sub merge_sancp_tables {
+   eval {
+      # check for != MRG_MyISAM - exit
       my $allsancptables = "SHOW TABLES LIKE `sancp_%`";
       my $sth2 = my $dbh2->prepare($allsancptables);
       $sth2->execute;
       # This should be true, we just created one!
       if ($sth2->rows > 0) {
          my @resarray=$sth2->fetchrow_array;
+         warn "Creating sancp MERGE table\n";
          my $merge = "                                      \
          CREATE TABLE sancp                                 \
          (                                                  \
@@ -267,14 +342,8 @@ sub setup_db {
       }else{
          die "Merge table failed: $!\n";
       }
+   return;
    };
-#   if($DEBUG){
-#      $sql = "SELECT * from asset";
-#      $sth = $dbh->prepare($sql) or die "foo $!";
-#      $sth->execute or die "$!";
-#      $sth->dump_results;
-#   }
-   return $dbh;
 }
 
 =head2 game_over
@@ -287,6 +356,7 @@ sub game_over {
 #    dump_active_sessions();
 #    dump_stats();
     warn " Terminating...\n";
+#   $result=$dbh->disconnect;
     unlink ($PIDFILE);
     exit 0;
 }
@@ -301,5 +371,3 @@ sub game_over {
  it under the same terms as Perl itself.
 
 =cut
-
-
