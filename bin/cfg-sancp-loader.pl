@@ -165,21 +165,21 @@ sub get_sancp_session {
 
 =cut
 
-#{
-#   # store prepared statements for re-execution
-#   my $h_select;
-#   my $h_update;
-#   my $h_insert;
-#   my $records;
-#   my $table;
-
 sub put_session2db {
    my $SESSION = shift;
    my $tablename = get_table_name();
-   
+
+   # Check if table exists, if not create and make new sancp merge table
+   if ( ! checkif_table_exist($tablename) ) {
+      new_sancp_table($tablename);
+      my $sancptables = find_sancp_tables();
+      merge_sancp_tables($sancptables);
+   }
+
    my( $cx_id, $s_t, $e_t, $tot_time, $ip_type, $src_dip, $src_port,
        $dst_dip, $dst_port, $src_packets, $src_byte, $dst_packets, $dst_byte, 
        $src_flags, $dst_flags) = split /\|/, $SESSION, 15;
+
    my ($sql, $sth);
    eval{
       $sql = "                                                  \
@@ -210,7 +210,6 @@ sub put_session2db {
       $sth->finish;
    };
 }
-#}
 
 =head2 setup_db
 
@@ -226,12 +225,6 @@ sub setup_db {
    my $sancptables = find_sancp_tables();
    merge_sancp_tables($sancptables);
    return;
-#   if($DEBUG){
-#      $sql = "SELECT * from asset";
-#      $sth = $dbh->prepare($sql) or die "foo $!";
-#      $sth->execute or die "$!";
-#      $sth->dump_results;
-#   }
 }
 
 =head2 new_sancp_table
@@ -247,7 +240,7 @@ print "$tablename\n";
    my ($sql, $sth);
    eval{
       $sql = "                                             \
-        CREATE TABLE $tablename                          \
+        CREATE TABLE IF NOT EXISTS $tablename              \
         (                                                  \
         sid           INT UNSIGNED            NOT NULL,    \
         sancpid       BIGINT UNSIGNED         NOT NULL,    \
@@ -378,6 +371,29 @@ sub get_table_name {
    return $tablename;
 }
 
+=head2 checkif_table_exist
+
+ Checks if a table exists. Takes $tablename as input and
+ returns 1 if $tablename exists, and 0 if not.
+
+=cut
+
+sub checkif_table_exist {
+    my $tablename = shift;
+    my ($sql, $sth);
+    eval { 
+       $sql = "select count(*) from $tablename where 1=0";
+       $dbh->do($sql);
+    };
+    if ($dbh->err) {
+       warn "Table $tablename does not exist.\n" if $DEBUG;
+       return 0;
+    }
+    else{
+       return 1;
+    }
+}
+
 =head2 game_over
 
  Terminates the program in a sainfull way.
@@ -385,8 +401,6 @@ sub get_table_name {
 =cut
 
 sub game_over {
-#    dump_active_sessions();
-#    dump_stats();
     warn " Terminating...\n";
     $dbh->disconnect;
     unlink ($PIDFILE);
