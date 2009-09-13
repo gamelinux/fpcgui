@@ -55,7 +55,7 @@ GetOptions(
 
 # Signal handlers
 use vars qw(%sources);
-#$SIG{"HUP"}   = \&dir_watch;
+$SIG{"HUP"}   = \&recreate_merge_table;
 $SIG{"INT"}   = sub { game_over() };
 $SIG{"TERM"}  = sub { game_over() };
 $SIG{"QUIT"}  = sub { game_over() };
@@ -176,9 +176,7 @@ sub put_session2db {
    # Check if table exists, if not create and make new sancp merge table
    if ( ! checkif_table_exist($tablename) ) {
       new_sancp_table($tablename);
-      my $sancptables = find_sancp_tables();
-      delete_merged_sancp_table();
-      merge_sancp_tables($sancptables);
+      recreate_merge_table();
    }
 
    my( $cx_id, $s_t, $e_t, $tot_time, $ip_type, $src_dip, $src_port,
@@ -415,6 +413,18 @@ sub checkif_table_exist {
     else{
        return 1;
     }
+}
+
+=head2 recreate_merge_table
+
+ Recreates the merge table.
+
+=cut
+
+sub recreate_merge_table {
+   my $sancptables = find_sancp_tables();
+   delete_merged_sancp_table();
+   merge_sancp_tables($sancptables);
 }
 
 =head2 game_over
