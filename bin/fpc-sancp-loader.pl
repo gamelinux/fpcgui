@@ -62,8 +62,7 @@ $SIG{"QUIT"}  = sub { game_over() };
 $SIG{"KILL"}  = sub { game_over() };
 #$SIG{"ALRM"}  = sub { dir_watch(); alarm $TIMEOUT; };
 
-my $DATE = time;
-warn "Starting fpc-sancp-loader.pl... $DATE\n";
+warn "Starting fpc-sancp-loader.pl...\n";
 
 # Prepare to meet the world of Daemons
 if ( $DAEMON ) {
