@@ -34,9 +34,10 @@ our $DEBUG         = 0;
 our $DAEMON        = 0;
 our $TIMEOUT       = 5;
 our $HOSTNAME      = q(aruba);
-my  $SDIR          = q(/nsm_data/hostname/sancp/);
+my  $SDIR          = "/nsm_data/$HOSTNAME/sancp/";
+my  $FDIR          = "$SDIR/failed/";
 my  $LOGFILE       = q(/var/log/fpc-sancp-loader.log);
-my  $PIDFILE       = q(/var/run/fpc-sancp-loader.pid);
+my  $PIDFILE       = q(/var/run/fpc-sancp-loader/fpc-sancp-loader.pid);
 our $DB_NAME       = "fpcgui";
 our $DB_HOST       = "127.0.0.1";
 our $DB_PORT       = "3306";
@@ -63,13 +64,6 @@ $SIG{"KILL"}  = sub { game_over() };
 
 my $DATE = time;
 warn "Starting fpc-sancp-loader.pl... $DATE\n";
-warn "Connecting to database...\n";
-my $dbh = DBI->connect($DBI,$DB_USERNAME,$DB_PASSWORD);
-if ( !$dbh ) {
-   die "Fail... $!\n"
-}
-# Make todays table, and initialize the sancp merged table
-setup_db();
 
 # Prepare to meet the world of Daemons
 if ( $DAEMON ) {
@@ -88,6 +82,11 @@ if ( $DAEMON ) {
    setsid ();
    open (STDERR, ">&STDOUT");
 }
+
+warn "Connecting to database...\n";
+my $dbh = DBI->connect($DBI,$DB_USERNAME,$DB_PASSWORD, {RaiseError => 1}) or die "$DBI::errstr";
+# Make todays table, and initialize the sancp merged table
+setup_db();
 
 # Start dir_watch() which looks for new sancp session files and put them into db
 warn "Looking for session data in: $SDIR \n" if $DEBUG;
@@ -118,8 +117,11 @@ sub dir_watch {
          closedir( DIR );
       }
       foreach my $FILE ( @FILES ) {
-         get_sancp_session ("$SDIR$FILE");
-         unlink("$SDIR$FILE"); 
+         my $result = get_sancp_session ("$SDIR$FILE");
+         if ($result == 1) {
+            rename ("$SDIR$FILE", "$FDIR$FILE") or warn "Couldn't move $SDIR$FILE to $FDIR$FILE: $!\n";
+         }
+         unlink("$SDIR$FILE") if $result == 0; 
       }
       # Dont pool files to often, or to seldom...
       sleep $TIMEOUT;                    
@@ -135,6 +137,7 @@ sub dir_watch {
 
 sub get_sancp_session {
    my $SFILE = shift;
+   my $result = 0;
    my %signatures;
    if (open (FILE, $SFILE)) {
       print "Found sancp session file: ".$SFILE."\n" if $DEBUG;
@@ -153,10 +156,11 @@ sub get_sancp_session {
             next LINE;
          }
          # Things should be OK now to send to the DB
-         my $result = put_session2db($line);
+         $result = put_session2db($line);
     }
       close FILE;
    }
+   return $result;
 }
 
 =head2 put_session2db
@@ -173,6 +177,7 @@ sub put_session2db {
    if ( ! checkif_table_exist($tablename) ) {
       new_sancp_table($tablename);
       my $sancptables = find_sancp_tables();
+      delete_merged_sancp_table();
       merge_sancp_tables($sancptables);
    }
 
@@ -209,6 +214,11 @@ sub put_session2db {
       $sth->execute;
       $sth->finish;
    };
+   if ($@) {
+      # Failed
+      return 1;
+   }
+   return 0;
 }
 
 =head2 setup_db
@@ -236,7 +246,6 @@ sub setup_db {
 
 sub new_sancp_table {
    my ($tablename) = shift;
-print "$tablename\n";
    my ($sql, $sth);
    eval{
       $sql = "                                             \
@@ -270,6 +279,11 @@ print "$tablename\n";
       $sth->execute;
       $sth->finish;
    };
+   if ($@) {
+      # Failed
+      return 1;
+   }
+   return 0;
 }
 
 =head2 find_sancp_tables
@@ -281,11 +295,9 @@ print "$tablename\n";
 sub find_sancp_tables {
    my ($sql, $sth);
    my $tables = q();
-   eval {
-      $sql = q(SHOW TABLES LIKE 'sancp_%');
-      $sth = $dbh->prepare($sql);
-      $sth->execute;
-   };
+   $sql = q(SHOW TABLES LIKE 'sancp_%');
+   $sth = $dbh->prepare($sql);
+   $sth->execute;
    while (my @array = $sth->fetchrow_array) {
       my $table = $array[0];
       $tables = "$tables $table,";
@@ -309,7 +321,13 @@ sub delete_merged_sancp_table {
       $sth->execute;
       $sth->finish;
    };     
-   print "Dropped table sancp...\n";
+   if ($@) {
+      # Failed
+      warn "Drop table sancp failed...\n" if $DEBUG;
+      return 1;
+   }
+   warn "Dropped table sancp...\n" if $DEBUG;
+   return 0;
 }
 
 =head2 merge_sancp_tables
@@ -323,7 +341,7 @@ sub merge_sancp_tables {
    my ($sql, $sth);
    eval {
       # check for != MRG_MyISAM - exit
-      warn "Creating sancp MERGE table\n";
+      warn "Creating sancp MERGE table\n" if $DEBUG;
       my $sql = "                                        \
       CREATE TABLE sancp                                 \
       (                                                  \
@@ -355,7 +373,12 @@ sub merge_sancp_tables {
       $sth->execute;
       $sth->finish;
    };
-   return;
+   if ($@) {
+      # Failed
+      warn "Create sancp MERGE table failed!\n" if $DEBUG;
+      return 1;
+   }
+   return 0;
 }
 
 =head2 get_table_name
