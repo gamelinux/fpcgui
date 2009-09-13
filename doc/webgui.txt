@@ -1,0 +1,32 @@
+Search for connections:
+--
+Write in your search:
+ [src_ip] [src_port] [dst_ip] [dst_port] [date] (SEARCH)
+Examlpes:
+   any        any       any      any       any
+ 10.1.1.1    any     10.1.1.2     80       any
+--
+
+
+Display search results:
+--
+10.1.1.1    35555    10.1.1.2     80     2009-10-10 22:56   (download pcap)
+10.1.1.1    37891    10.1.1.2     80     2009-10-10 23:04   (download pcap)
+10.1.1.1    37966    10.1.1.2     80     2009-10-10 23:13   (download pcap)
+10.1.1.1    38122    10.1.1.2     80     2009-10-10 23:22   (download pcap)
+
+(download all sessions in one pcap)
+(analyse data from all sessions)
+--
+
+
+Analysis of all pcaps:
+--
+extract files (pdf,exe,gif,jpg,mp3....) if any (click to download file)
+first packet data -> last packet date
+total amount of packets etc.
+virusscan files if any and report status.
+--
+
+
+

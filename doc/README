@@ -16,3 +16,11 @@ sancp indexes connections, making them searchable.
 
 Carving:
 /usr/sbin/tcpdump -r /nsm_data/hostname/dailylogs/2009-09-09/snort.log.1251338461 -w /tmp/80.30.200.100:56640_74.50.87.122:80-6.raw host 74.50.87.122 and host 80.30.200.100 and port 80 and port 56640 and proto 6
+
+
+Some notes for the future:
+*  Extraction of files
+*  Indexing of files (like sancp, but for types of files flying over the network)
+   studdy the network and add meta data about files (from streams it sees them in) to DB
+*  Load list of "bad IPs" and see if there has been any traffic with them...
+
