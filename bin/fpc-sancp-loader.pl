@@ -387,6 +387,7 @@ sub merge_sancp_tables {
 sub get_table_name {
    my $DATE = `date --iso`;
    $DATE =~ s/\-//g;
+   $DATE =~ s/\n$//;
    my $tablename = "sancp_" . "$HOSTNAME" . "_" . "$DATE";
    return $tablename;
 }
