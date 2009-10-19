@@ -5,12 +5,12 @@ FPCGUI is a frontend to handle packet captures.
 Its aim is for Network Security Monitoring who wants to
 have a non-commersial cheap storrage for doing Network Forensics.
 
-It is built on daemonlogger (A great packet capture daemon by Martin Roesch)
-and sancp (Security Analyst Network Connection Profiler).
+It uses daemonlogger (A great packet capture daemon by Martin Roesch)
+and cxtracker or sancp for connection profiling.
 
 daemonlogger is responsable for dumping pcaps to disk.
-sancp indexes connections, making them searchable.
-(sancp stores data in mysql or alike)
+cxtracker/sancp indexes connections, making them searchable.
+(fpc-session-loader.pl stores data in mysql)
 	(apache + php is used for gui)
 
 
@@ -20,7 +20,7 @@ Carving:
 
 Some notes for the future:
 *  Extraction of files
-*  Indexing of files (like sancp, but for types of files flying over the network)
+*  Indexing of files for types of files flying over the network
    studdy the network and add meta data about files (from streams it sees them in) to DB
 *  Load list of "bad IPs" and see if there has been any traffic with them...
 
