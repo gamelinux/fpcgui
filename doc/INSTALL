@@ -12,6 +12,9 @@ GRANT USAGE ON *.* TO 'fpcgui'@'localhost' identified by 'fpcgui';
 GRANT ALL ON fpcgui.* TO 'fpcgui'@'localhost' IDENTIFIED BY 'fpcgui';
 FLUSH PRIVILEGES;
 
+CREATE DATABASE fpcgui;
+\u fpcgui
+
 DELIMITER //
 CREATE FUNCTION INET_ATON6(n CHAR(39))
 RETURNS DECIMAL(39) UNSIGNED
@@ -70,5 +73,8 @@ DELIMITER ;
 
 # Edit fpc-session-loader.pl to match db user and password if needed.
 
-
+# Some files and dirs that should be writeable:
+mkdir /var/run/fpc-session-loader/
+touch /var/log/fpc-session-loader.log
+# chown user.user /var/run/fpc-session-loader/ /var/log/fpc-session-loader.log
 
