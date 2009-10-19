@@ -9,7 +9,7 @@ use DBI;
 
 =head1 NAME
 
-fpc-sancp-loader.pl - Load sancp sessions into db
+fpc-session-loader.pl - Load session metadata into db
 
 =head1 VERSION
 
@@ -17,15 +17,15 @@ fpc-sancp-loader.pl - Load sancp sessions into db
 
 =head1 SYNOPSIS
 
- $ fpc-sancp-loader.pl [options]
+ $ fpc-session-loader.pl [options]
 
  OPTIONS:
 
- --dir          : set the dir to monitor for sancp files
+ --dir          : set the dir to monitor for session files
  --daemon       : enables daemon mode
  --debug        : enable debug messages (default: 0 (disabled))
  --help         : this help message
- --version      : show fpc-sancp-loader.pl version
+ --version      : show fpc-session-loader.pl version
 
 =cut
 
@@ -34,10 +34,10 @@ our $DEBUG         = 0;
 our $DAEMON        = 0;
 our $TIMEOUT       = 5;
 our $HOSTNAME      = q(aruba);
-my  $SDIR          = "/nsm_data/$HOSTNAME/sancp/";
+my  $SDIR          = "/nsm_data/$HOSTNAME/session/";
 my  $FDIR          = "$SDIR/failed/";
-my  $LOGFILE       = q(/var/log/fpc-sancp-loader.log);
-my  $PIDFILE       = q(/var/run/fpc-sancp-loader/fpc-sancp-loader.pid);
+my  $LOGFILE       = q(/var/log/fpc-session-loader.log);
+my  $PIDFILE       = q(/var/run/fpc-session-loader/fpc-session-loader.pid);
 our $DB_NAME       = "fpcgui";
 our $DB_HOST       = "127.0.0.1";
 our $DB_PORT       = "3306";
@@ -62,11 +62,11 @@ $SIG{"QUIT"}  = sub { game_over() };
 $SIG{"KILL"}  = sub { game_over() };
 #$SIG{"ALRM"}  = sub { dir_watch(); alarm $TIMEOUT; };
 
-warn "Starting fpc-sancp-loader.pl...\n";
+warn "[*] Starting fpc-session-loader.pl...\n";
 
 # Prepare to meet the world of Daemons
 if ( $DAEMON ) {
-   print "Daemonizing...\n";
+   print "[*] Daemonizing...\n";
    chdir ("/") or die "chdir /: $!\n";
    open (STDIN, "/dev/null") or die "open /dev/null: $!\n";
    open (STDOUT, "> $LOGFILE") or die "open > $LOGFILE: $!\n";
@@ -82,13 +82,13 @@ if ( $DAEMON ) {
    open (STDERR, ">&STDOUT");
 }
 
-warn "Connecting to database...\n";
+warn "[*] Connecting to database...\n";
 my $dbh = DBI->connect($DBI,$DB_USERNAME,$DB_PASSWORD, {RaiseError => 1}) or die "$DBI::errstr";
-# Make todays table, and initialize the sancp merged table
+# Make todays table, and initialize the session merged table
 setup_db();
 
-# Start dir_watch() which looks for new sancp session files and put them into db
-warn "Looking for session data in: $SDIR \n" if $DEBUG;
+# Start dir_watch() which looks for new session files and put them into db
+warn "[*] Looking for session data in: $SDIR \n" if $DEBUG;
 dir_watch();
 exit;
 
@@ -96,7 +96,7 @@ exit;
 
 =head2 dir_watch
 
- This sub looks for new session data from sancp in a dir.
+ This sub looks for new session data in a dir.
  Takes $dir to watch as input.
 
 =cut
@@ -107,7 +107,7 @@ sub dir_watch {
       my @FILES;
       # Open the directory
       if( opendir( DIR, $SDIR ) ) {
-         # Find sancp files in dir (stats.eth0.1229062136)
+         # Find session files in dir (stats.eth0.1229062136)
          while( my $FILE = readdir( DIR ) ) {
             next if( ( "." eq $FILE ) || ( ".." eq $FILE ) );
             next unless ($FILE =~ /^stats\..*\.\d{10}$/);
@@ -116,9 +116,9 @@ sub dir_watch {
          closedir( DIR );
       }
       foreach my $FILE ( @FILES ) {
-         my $result = get_sancp_session ("$SDIR$FILE");
+         my $result = get_session ("$SDIR$FILE");
          if ($result == 1) {
-            rename ("$SDIR$FILE", "$FDIR$FILE") or warn "Couldn't move $SDIR$FILE to $FDIR$FILE: $!\n";
+            rename ("$SDIR$FILE", "$FDIR$FILE") or warn "[*] Couldn't move $SDIR$FILE to $FDIR$FILE: $!\n";
          }
          unlink("$SDIR$FILE") if $result == 0; 
       }
@@ -127,31 +127,31 @@ sub dir_watch {
    }   
 }
 
-=head2 get_sancp_session
+=head2 get_session
 
- This sub extracts the session data from a sancp session data file (sancp fpc format).
+ This sub extracts the session data from a session data file.
  Takes $file as input parameter.
 
 =cut
 
-sub get_sancp_session {
+sub get_session {
    my $SFILE = shift;
    my $result = 0;
    my %signatures;
    if (open (FILE, $SFILE)) {
-      print "Found sancp session file: ".$SFILE."\n" if $DEBUG;
-      # Verify the data in the sancp session files
+      print "Found session file: ".$SFILE."\n" if $DEBUG;
+      # Verify the data in the session files
       LINE:
       while (my $line = readline FILE) {
          chomp $line;
          $line =~ /^\d{19}/;
          unless($line) {
-            warn "Error: Not valid session start format in: '$SFILE'";
+            warn "[*] Error: Not valid session start format in: '$SFILE'";
             next LINE;
          }
          my @elements = split/\|/,$line;
          unless(@elements == 15) {
-            warn "Error: Not valid Nr. of session args format in: '$SFILE'";
+            warn "[*] Error: Not valid Nr. of session args format in: '$SFILE'";
             next LINE;
          }
          # Things should be OK now to send to the DB
@@ -162,9 +162,114 @@ sub get_sancp_session {
    return $result;
 }
 
+=head2 ip_is_ipv6
+
+ Check if an IP address is version 6
+ returns 1 if true, 0 if false
+
+=cut
+
+sub ip_is_ipv6 {
+    my $ip = shift;
+
+    # Count octets
+    my $n = ($ip =~ tr/:/:/);
+    return (0) unless ($n > 0 and $n < 8);
+
+    # $k is a counter
+    my $k;
+
+    foreach (split /:/, $ip) {
+        $k++;
+
+        # Empty octet ?
+        next if ($_ eq '');
+
+        # Normal v6 octet ?
+        next if (/^[a-f\d]{1,4}$/i);
+
+        # Last octet - is it IPv4 ?
+        if ($k == $n + 1) {
+            next if (ip_is_ipv4($_));
+        }
+
+        print "[*] Invalid IP address $ip";
+        return 0;
+    }
+
+    # Does the IP address start with : ?
+    if ($ip =~ m/^:[^:]/) {
+        print "[*] Invalid address $ip (starts with :)";
+        return 0;
+    }
+
+    # Does the IP address finish with : ?
+    if ($ip =~ m/[^:]:$/) {
+        print "[*] Invalid address $ip (ends with :)";
+        return 0;
+    }
+
+    # Does the IP address have more than one '::' pattern ?
+    if ($ip =~ s/:(?=:)//g > 1) {
+        print "[*] Invalid address $ip (More than one :: pattern)";
+        return 0;
+    }
+
+    return 1;
+}
+
+=head2 expand_ipv6
+
+ Expands a IPv6 address from short notation
+
+=cut
+
+sub expand_ipv6 {
+
+   my $ip = shift;
+
+   # Keep track of ::
+   $ip =~ s/::/:!:/;
+
+   # IP as an array
+   my @ip = split /:/, $ip;
+
+   # Number of octets
+   my $num = scalar(@ip);
+
+   # Now deal with '::' ('000!')
+   foreach (0 .. (scalar(@ip) - 1)) {
+
+      # Find the pattern
+      next unless ($ip[$_] eq '!');
+
+      # @empty is the IP address 0
+      my @empty = map { $_ = '0' x 4 } (0 .. 7);
+
+      # Replace :: with $num '0000' octets
+      $ip[$_] = join ':', @empty[ 0 .. 8 - $num ];
+      last;
+   }
+
+   # Now deal with octets where there are less then 4 enteries
+   my @ip_long = split /:/, (lc(join ':', @ip));
+   foreach (0 .. (scalar(@ip_long) -1 )) {
+
+      # Next if we have our 4 enteries
+      next if ( $ip_long[$_] =~ /^[a-f\d]{4}$/ );
+
+      # Push '0' until we match
+      while (!($ip_long[$_] =~ /[a-f\d]{4,}/)) {
+         $ip_long[$_] =~ s/^/0/;
+      }
+   }
+
+   return (lc(join ':', @ip_long));
+}
+
 =head2 put_session2db
 
- takes a sancp session line as input and stores it in DB
+ takes a session line as input and stores it in DB
 
 =cut
 
@@ -172,9 +277,9 @@ sub put_session2db {
    my $SESSION = shift;
    my $tablename = get_table_name();
 
-   # Check if table exists, if not create and make new sancp merge table
+   # Check if table exists, if not create and make new session merge table
    if ( ! checkif_table_exist($tablename) ) {
-      new_sancp_table($tablename);
+      new_session_table($tablename);
       recreate_merge_table();
    }
 
@@ -182,32 +287,29 @@ sub put_session2db {
        $dst_dip, $dst_port, $src_packets, $src_byte, $dst_packets, $dst_byte, 
        $src_flags, $dst_flags) = split /\|/, $SESSION, 15;
 
+  if ( ip_is_ipv6($src_dip) || ip_is_ipv6($dst_dip) ) {
+      $src_dip = expand_ipv6($src_dip);
+      $dst_dip = expand_ipv6($dst_dip);
+      $src_dip = "INET_ATON6(\'$src_dip\')";
+      $dst_dip = "INET_ATON6(\'$dst_dip\')";
+  }
+
    my ($sql, $sth);
    eval{
-      $sql = "                                                  \
-             INSERT INTO $tablename (                           \
-             sid,sancpid,start_time,end_time,duration,ip_proto, \
-             src_ip,src_port,dst_ip,dst_port,src_pkts,src_bytes,\
-             dst_pkts,dst_bytes,src_flags,dst_flags             \
-             ) VALUES (                                         \
-             ?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)";
+
+      $sql = qq[                                                 
+             INSERT INTO $tablename (                           
+                sid,sessionid,start_time,end_time,duration,ip_proto, 
+                src_ip,src_port,dst_ip,dst_port,src_pkts,src_bytes,
+                dst_pkts,dst_bytes,src_flags,dst_flags             
+             ) VALUES (                                         
+                '$HOSTNAME','$cx_id','$s_t','$e_t','$tot_time',
+                '$ip_type',$src_dip,'$src_port',$dst_dip,'$dst_port',
+                '$src_packets','$src_byte','$dst_packets','$dst_byte',
+                '$src_flags','$dst_flags'
+             )];
+
       $sth = $dbh->prepare($sql);
-      $sth->bind_param(1, $HOSTNAME);
-      $sth->bind_param(2, $cx_id);
-      $sth->bind_param(3, $s_t);
-      $sth->bind_param(4, $e_t);
-      $sth->bind_param(5, $tot_time);
-      $sth->bind_param(6, $ip_type);
-      $sth->bind_param(7, $src_dip);
-      $sth->bind_param(8, $src_port);
-      $sth->bind_param(9, $dst_dip);
-      $sth->bind_param(10, $dst_port);
-      $sth->bind_param(11, $src_packets);
-      $sth->bind_param(12, $src_byte);
-      $sth->bind_param(13, $dst_packets);
-      $sth->bind_param(14, $dst_byte);
-      $sth->bind_param(15, $src_flags);
-      $sth->bind_param(16, $dst_flags);
       $sth->execute;
       $sth->finish;
    };
@@ -220,43 +322,43 @@ sub put_session2db {
 
 =head2 setup_db
 
- Create todays table if it dont exist (sancp_hostname_date).
- Make a new merge of all sancp_% tables.
+ Create todays table if it dont exist (session_hostname_date).
+ Make a new merge of all session_% tables.
 
 =cut
 
 sub setup_db {
    my $tablename = get_table_name();
-   new_sancp_table($tablename);
-   delete_merged_sancp_table();
-   my $sancptables = find_sancp_tables();
-   merge_sancp_tables($sancptables);
+   new_session_table($tablename);
+   delete_merged_session_table();
+   my $sessiontables = find_session_tables();
+   merge_session_tables($sessiontables);
    return;
 }
 
-=head2 new_sancp_table
+=head2 new_session_table
 
- Creates a new sancp_$hostname_$date table
+ Creates a new session_$hostname_$date table
  Takes $hostname and $date as input.
 
 =cut
 
-sub new_sancp_table {
+sub new_session_table {
    my ($tablename) = shift;
    my ($sql, $sth);
    eval{
       $sql = "                                             \
         CREATE TABLE IF NOT EXISTS $tablename              \
         (                                                  \
-        sid           INT UNSIGNED            NOT NULL,    \
-        sancpid       BIGINT UNSIGNED         NOT NULL,    \
+        sid           INT(10) UNSIGNED            NOT NULL,\
+        sessionid     BIGINT(20) UNSIGNED         NOT NULL,\
         start_time    DATETIME                NOT NULL,    \
         end_time      DATETIME                NOT NULL,    \
-        duration      INT UNSIGNED            NOT NULL,    \
+        duration      INT(10) UNSIGNED            NOT NULL,\
         ip_proto      TINYINT UNSIGNED        NOT NULL,    \
-        src_ip        INT UNSIGNED,                        \
+        src_ip        DECIMAL(39,0) UNSIGNED,              \
         src_port      SMALLINT UNSIGNED,                   \
-        dst_ip        INT UNSIGNED,                        \
+        dst_ip        DECIMAL(39,0) UNSIGNED,              \
         dst_port      SMALLINT UNSIGNED,                   \
         src_pkts      INT UNSIGNED            NOT NULL,    \
         src_bytes     INT UNSIGNED            NOT NULL,    \
@@ -264,7 +366,7 @@ sub new_sancp_table {
         dst_bytes     INT UNSIGNED            NOT NULL,    \
         src_flags     TINYINT UNSIGNED        NOT NULL,    \
         dst_flags     TINYINT UNSIGNED        NOT NULL,    \
-        PRIMARY KEY (sid,sancpid),                         \
+        PRIMARY KEY (sid,sessionid),                       \
         INDEX src_ip (src_ip),                             \
         INDEX dst_ip (dst_ip),                             \
         INDEX dst_port (dst_port),                         \
@@ -283,16 +385,16 @@ sub new_sancp_table {
    return 0;
 }
 
-=head2 find_sancp_tables
+=head2 find_session_tables
  
- Find all sancp_% tables
+ Find all session_% tables
 
 =cut
 
-sub find_sancp_tables {
+sub find_session_tables {
    my ($sql, $sth);
    my $tables = q();
-   $sql = q(SHOW TABLES LIKE 'sancp_%');
+   $sql = q(SHOW TABLES LIKE 'session_%');
    $sth = $dbh->prepare($sql);
    $sth->execute;
    while (my @array = $sth->fetchrow_array) {
@@ -304,53 +406,53 @@ sub find_sancp_tables {
    return $tables;;
 }
 
-=head2 delete_merged_sancp_table
+=head2 delete_merged_session_table
 
- Deletes the sancp merged table if it exists.
+ Deletes the session merged table if it exists.
 
 =cut
 
-sub delete_merged_sancp_table {
+sub delete_merged_session_table {
    my ($sql, $sth);
    eval{
-      $sql = "DROP TABLE IF EXISTS sancp";
+      $sql = "DROP TABLE IF EXISTS session";
       $sth = $dbh->prepare($sql);
       $sth->execute;
       $sth->finish;
    };     
    if ($@) {
       # Failed
-      warn "Drop table sancp failed...\n" if $DEBUG;
+      warn "[*] Drop table session failed...\n" if $DEBUG;
       return 1;
    }
-   warn "Dropped table sancp...\n" if $DEBUG;
+   warn "[*] Dropped table session...\n" if $DEBUG;
    return 0;
 }
 
-=head2 merge_sancp_tables
+=head2 merge_session_tables
 
- Creates a new sancp merge table
+ Creates a new session merge table
 
 =cut
 
-sub merge_sancp_tables {
+sub merge_session_tables {
    my $tables = shift;
    my ($sql, $sth);
    eval {
       # check for != MRG_MyISAM - exit
-      warn "Creating sancp MERGE table\n" if $DEBUG;
+      warn "[*] Creating session MERGE table\n" if $DEBUG;
       my $sql = "                                        \
-      CREATE TABLE sancp                                 \
+      CREATE TABLE session                               \
       (                                                  \
-      sid           INT UNSIGNED            NOT NULL,    \
-      sancpid       BIGINT UNSIGNED         NOT NULL,    \
+      sid           INT(0) UNSIGNED            NOT NULL, \
+      sessionid       BIGINT(20) UNSIGNED         NOT NULL,\
       start_time    DATETIME                NOT NULL,    \
       end_time      DATETIME                NOT NULL,    \
-      duration      INT UNSIGNED            NOT NULL,    \
-      ip_proto      TINYINT UNSIGNED        NOT NULL,    \
-      src_ip        INT UNSIGNED,                        \
+      duration      INT(10) UNSIGNED            NOT NULL,\
+      ip_proto      TINYINT(3) UNSIGNED        NOT NULL, \
+      src_ip        DECIMAL(39,0) UNSIGNED,              \
       src_port      SMALLINT UNSIGNED,                   \
-      dst_ip        INT UNSIGNED,                        \
+      dst_ip        DECIMAL(39,0) UNSIGNED,              \
       dst_port      SMALLINT UNSIGNED,                   \
       src_pkts      INT UNSIGNED            NOT NULL,    \
       src_bytes     INT UNSIGNED            NOT NULL,    \
@@ -358,7 +460,7 @@ sub merge_sancp_tables {
       dst_bytes     INT UNSIGNED            NOT NULL,    \
       src_flags     TINYINT UNSIGNED        NOT NULL,    \
       dst_flags     TINYINT UNSIGNED        NOT NULL,    \
-      INDEX p_key (sid,sancpid),                         \
+      INDEX p_key (sid,sessionid),                       \
       INDEX src_ip (src_ip),                             \
       INDEX dst_ip (dst_ip),                             \
       INDEX dst_port (dst_port),                         \
@@ -372,7 +474,7 @@ sub merge_sancp_tables {
    };
    if ($@) {
       # Failed
-      warn "Create sancp MERGE table failed!\n" if $DEBUG;
+      warn "[*] Create session MERGE table failed!\n" if $DEBUG;
       return 1;
    }
    return 0;
@@ -380,7 +482,7 @@ sub merge_sancp_tables {
 
 =head2 get_table_name
 
- makes a table name, format: sancp_$HOSTNAME_$DATE
+ makes a table name, format: session_$HOSTNAME_$DATE
 
 =cut
 
@@ -388,7 +490,7 @@ sub get_table_name {
    my $DATE = `date --iso`;
    $DATE =~ s/\-//g;
    $DATE =~ s/\n$//;
-   my $tablename = "sancp_" . "$HOSTNAME" . "_" . "$DATE";
+   my $tablename = "session_" . "$HOSTNAME" . "_" . "$DATE";
    return $tablename;
 }
 
@@ -422,9 +524,9 @@ sub checkif_table_exist {
 =cut
 
 sub recreate_merge_table {
-   my $sancptables = find_sancp_tables();
-   delete_merged_sancp_table();
-   merge_sancp_tables($sancptables);
+   my $sessiontables = find_session_tables();
+   delete_merged_session_table();
+   merge_session_tables($sessiontables);
 }
 
 =head2 game_over
@@ -434,7 +536,7 @@ sub recreate_merge_table {
 =cut
 
 sub game_over {
-    warn " Terminating...\n";
+    warn "[*] Terminating...\n";
     $dbh->disconnect;
     unlink ($PIDFILE);
     exit 0;
