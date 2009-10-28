@@ -276,6 +276,7 @@ sub expand_ipv6 {
 sub put_session2db {
    my $SESSION = shift;
    my $tablename = get_table_name();
+   my $ip_version = 2; # AF_INET
 
    # Check if table exists, if not create and make new session merge table
    if ( ! checkif_table_exist($tablename) ) {
@@ -292,6 +293,7 @@ sub put_session2db {
       $dst_dip = expand_ipv6($dst_dip);
       $src_dip = "INET_ATON6(\'$src_dip\')";
       $dst_dip = "INET_ATON6(\'$dst_dip\')";
+      $ip_version = 10; # AF_INET6
   }
 
    my ($sql, $sth);
@@ -301,12 +303,12 @@ sub put_session2db {
              INSERT INTO $tablename (                           
                 sid,sessionid,start_time,end_time,duration,ip_proto, 
                 src_ip,src_port,dst_ip,dst_port,src_pkts,src_bytes,
-                dst_pkts,dst_bytes,src_flags,dst_flags             
+                dst_pkts,dst_bytes,src_flags,dst_flags,ip_version
              ) VALUES (                                         
                 '$HOSTNAME','$cx_id','$s_t','$e_t','$tot_time',
                 '$ip_type',$src_dip,'$src_port',$dst_dip,'$dst_port',
                 '$src_packets','$src_byte','$dst_packets','$dst_byte',
-                '$src_flags','$dst_flags'
+                '$src_flags','$dst_flags','$ip_version'
              )];
 
       $sth = $dbh->prepare($sql);
@@ -350,22 +352,23 @@ sub new_session_table {
       $sql = "                                             \
         CREATE TABLE IF NOT EXISTS $tablename              \
         (                                                  \
-        sid           INT(10) UNSIGNED            NOT NULL,\
-        sessionid     BIGINT(20) UNSIGNED         NOT NULL,\
-        start_time    DATETIME                NOT NULL,    \
-        end_time      DATETIME                NOT NULL,    \
-        duration      INT(10) UNSIGNED            NOT NULL,\
-        ip_proto      TINYINT UNSIGNED        NOT NULL,    \
+        sid           INT(10) UNSIGNED           NOT NULL, \
+        sessionid     BIGINT(20) UNSIGNED        NOT NULL, \
+        start_time    DATETIME                   NOT NULL, \
+        end_time      DATETIME                   NOT NULL, \
+        duration      INT(10) UNSIGNED           NOT NULL, \
+        ip_proto      TINYINT UNSIGNED           NOT NULL, \
+        ip_version    TINYINT UNSIGNED           NOT NULL, \
         src_ip        DECIMAL(39,0) UNSIGNED,              \
         src_port      SMALLINT UNSIGNED,                   \
         dst_ip        DECIMAL(39,0) UNSIGNED,              \
         dst_port      SMALLINT UNSIGNED,                   \
-        src_pkts      INT UNSIGNED            NOT NULL,    \
-        src_bytes     INT UNSIGNED            NOT NULL,    \
-        dst_pkts      INT UNSIGNED            NOT NULL,    \
-        dst_bytes     INT UNSIGNED            NOT NULL,    \
-        src_flags     TINYINT UNSIGNED        NOT NULL,    \
-        dst_flags     TINYINT UNSIGNED        NOT NULL,    \
+        src_pkts      INT UNSIGNED               NOT NULL, \
+        src_bytes     INT UNSIGNED               NOT NULL, \
+        dst_pkts      INT UNSIGNED               NOT NULL, \
+        dst_bytes     INT UNSIGNED               NOT NULL, \
+        src_flags     TINYINT UNSIGNED           NOT NULL, \
+        dst_flags     TINYINT UNSIGNED           NOT NULL, \
         PRIMARY KEY (sid,sessionid),                       \
         INDEX src_ip (src_ip),                             \
         INDEX dst_ip (dst_ip),                             \
@@ -445,21 +448,22 @@ sub merge_session_tables {
       CREATE TABLE session                               \
       (                                                  \
       sid           INT(0) UNSIGNED            NOT NULL, \
-      sessionid       BIGINT(20) UNSIGNED         NOT NULL,\
-      start_time    DATETIME                NOT NULL,    \
-      end_time      DATETIME                NOT NULL,    \
-      duration      INT(10) UNSIGNED            NOT NULL,\
+      sessionid       BIGINT(20) UNSIGNED      NOT NULL, \
+      start_time    DATETIME                   NOT NULL, \
+      end_time      DATETIME                   NOT NULL, \
+      duration      INT(10) UNSIGNED           NOT NULL, \
       ip_proto      TINYINT(3) UNSIGNED        NOT NULL, \
+      ip_version    TINYINT(3) UNSIGNED        NOT NULL, \
       src_ip        DECIMAL(39,0) UNSIGNED,              \
       src_port      SMALLINT UNSIGNED,                   \
       dst_ip        DECIMAL(39,0) UNSIGNED,              \
       dst_port      SMALLINT UNSIGNED,                   \
-      src_pkts      INT UNSIGNED            NOT NULL,    \
-      src_bytes     INT UNSIGNED            NOT NULL,    \
-      dst_pkts      INT UNSIGNED            NOT NULL,    \
-      dst_bytes     INT UNSIGNED            NOT NULL,    \
-      src_flags     TINYINT UNSIGNED        NOT NULL,    \
-      dst_flags     TINYINT UNSIGNED        NOT NULL,    \
+      src_pkts      INT UNSIGNED               NOT NULL, \
+      src_bytes     INT UNSIGNED               NOT NULL, \
+      dst_pkts      INT UNSIGNED               NOT NULL, \
+      dst_bytes     INT UNSIGNED               NOT NULL, \
+      src_flags     TINYINT UNSIGNED           NOT NULL, \
+      dst_flags     TINYINT UNSIGNED           NOT NULL, \
       INDEX p_key (sid,sessionid),                       \
       INDEX src_ip (src_ip),                             \
       INDEX dst_ip (dst_ip),                             \
