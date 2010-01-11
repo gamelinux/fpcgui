@@ -26,7 +26,7 @@ $dbname = "fpcgui";
 // Settings
 $maxRows = 20;
 $fpcguidir = "/nsm_data/hostname/dailylogs";
-$mrgtmpd = "/tmp/merge/";
+$mrgtmpdir = "/tmp/merge/";
 $tcpdump = "/usr/sbin/tcpdump";
 $mergecap = "/usr/bin/mergecap";
 
@@ -158,7 +158,7 @@ function mainDisplay() {
 }
 
 function dumpDisplay() {
-    global $fpcguidir, $tcpdump, $ipv;
+    global $fpcguidir, $tcpdump, $ipv, $mergecap, $mrgtmpdir;
     $dump = "";
     
     $array = doSessionQuery();
@@ -174,12 +174,12 @@ function dumpDisplay() {
     while ( $sudate <= $eudate ) {
         // Should now find all pcaps in dir!
         $pcap = list_pcaps_in_dir("$fpcguidir/");
-        if ($array) { 
+        if ($pcap) { 
+            // make the dir to dump pcap carvings
+            $mkdircmd = "mkdir -p $mrgtmpdir/" . $array["sessionid"];
             for ($i = 0; $i < count($pcap); $i++) {
-                // make the dir to dump pcap carvings
-                $mkdircmd = "mkdir -p $mrgtmpdir/" . $array["sessionid"]; 
                 // carve out the session from the pcap files
-                $dump = "$tcpdump -r $fpcguidir/" . date("Y-m-d", $sudate) . "/" . $pcap[$i];
+                $dump = "sudo $tcpdump -r $fpcguidir/" . date("Y-m-d", $sudate) . "/" . $pcap[$i];
                 $dump .= "-w $mrgtmpdir/" . $array["sessionid"] . "-$i" . ".pcap ";
                 if ($ipv == 2)  $dump .= "ip and ";
                 if ($ipv == 10) $dump .= "ip6 and ";
@@ -190,6 +190,7 @@ function dumpDisplay() {
                 $dump .= "and proto " . $array["ip_proto"];
                 $cmd = escapeshellcmd($dump);
                 $r1 = shell_exec("$cmd &");
+                //$out .= "$dump<br>";
             }
         }
     $sudate += 86400;
@@ -203,11 +204,11 @@ function dumpDisplay() {
         for ($i = 0; $i < count($mpcap); $i++) {
             $flist .= "$mpcap[$i] ";
         }
-        $merge = "mergecap -w " . $mrgtmpdir . "/" . $array["sessionid"] . "/ $flist";
+        $merge = "sudo $mergecap -w " . $mrgtmpdir . "/" . $array["sessionid"] . "/ $flist";
         //$cmd = escapeshellcmd($merge);
-        $r2 = "E";
-        $out .= $merge;
-        //$r2 = shell_exec("$cmd &");
+        //$r2 = "E";
+        //$out .= $merge;
+        $r2 = shell_exec("$cmd &");
     }
 
     $out .= "tcpdump:$r1 | mergecap:$r2";
