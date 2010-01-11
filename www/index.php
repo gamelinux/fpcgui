@@ -160,27 +160,25 @@ function mainDisplay() {
 function dumpDisplay() {
     global $fpcguidir, $tcpdump, $ipv, $mergecap, $mrgtmpdir;
     $dump = "";
-    
+   
     $array = doSessionQuery();
     $sddate = dirdate($array["start_time"]);
     $eddate = dirdate($array["end_time"]);
     $sudate = dd2unix($sddate);
     $eudate = dd2unix($eddate);
 
-    $out .= "<div class=titleDisplay><table border=0 width=100% cellpadding=0 cellspacing=0>";
-        $out .= "<tr>";
-    $out .= "<td width=250 valign=middle align=center><div style=\"font-size: 18px; color: #DEDEDE\">";
-
     while ( $sudate <= $eudate ) {
         // Should now find all pcaps in dir!
-        $pcap = list_pcaps_in_dir("$fpcguidir/");
-        if ($pcap) { 
+        $tmpdir = "$fpcguidir/" . date("Y-m-d", $sudate) . "/";
+        $pcap = list_pcaps_in_dir("$tmpdir");
+        if ($pcap) {
             // make the dir to dump pcap carvings
-            $mkdircmd = "mkdir -p $mrgtmpdir/" . $array["sessionid"];
+            $mkdircmd = "sudo mkdir -p $mrgtmpdir/" . $array["sessionid"];
+            shell_exec("$mkdircmd &");
             for ($i = 0; $i < count($pcap); $i++) {
                 // carve out the session from the pcap files
-                $dump = "sudo $tcpdump -r $fpcguidir/" . date("Y-m-d", $sudate) . "/" . $pcap[$i];
-                $dump .= "-w $mrgtmpdir/" . $array["sessionid"] . "-$i" . ".pcap ";
+                $dump = "sudo $tcpdump -r $fpcguidir/" . date("Y-m-d", $sudate) . "/" . $pcap[$i] . " ";
+                $dump .= "-w $mrgtmpdir/" . $array["sessionid"] . "/" . $array["sessionid"] . "-$i" . ".pcap ";
                 if ($ipv == 2)  $dump .= "ip and ";
                 if ($ipv == 10) $dump .= "ip6 and ";
                 $dump .= "host " . $array["src_ip"] . " and host " . $array["dst_ip"] . " ";
@@ -189,34 +187,33 @@ function dumpDisplay() {
                 }
                 $dump .= "and proto " . $array["ip_proto"];
                 $cmd = escapeshellcmd($dump);
-                $r1 = shell_exec("$cmd &");
-                //$out .= "$dump<br>";
+                $r1 = shell_exec("$cmd");
             }
         }
     $sudate += 86400;
     }
-
-    // mergecap -w $outfile file1 file2...    
+    // mergecap -w $outfile file1 file2...
     // for files in merged-pcap do...
-    $mpcap = list_pcaps_in_dir("$mrgtmpdir/" . $array["sessionid"] . "/");
+    $tmpdir2 = $mrgtmpdir . "/" . $array["sessionid"] . "/";
+    $mpcap = list_pcaps_in_dir("$tmpdir2");
     if ($mpcap) {
         $flist = "";
         for ($i = 0; $i < count($mpcap); $i++) {
-            $flist .= "$mpcap[$i] ";
+            $flist .= "$tmpdir2/$mpcap[$i] ";
         }
-        $merge = "sudo $mergecap -w " . $mrgtmpdir . "/" . $array["sessionid"] . "/ $flist";
-        //$cmd = escapeshellcmd($merge);
-        //$r2 = "E";
-        //$out .= $merge;
-        $r2 = shell_exec("$cmd &");
+        $mergedfile = $tmpdir2 . $array["sessionid"] . ".pcap";
+        $merge  = "sudo $mergecap -w " . $mergedfile . " ";
+        $merge .= "$flist";
+        $cmd = escapeshellcmd($merge);
+        $r2 = shell_exec("$cmd");
     }
 
-    $out .= "tcpdump:$r1 | mergecap:$r2";
-    $out .= "</td></tr></table>";
-        $out .= "</div>";
+    if ($mergedfile && is_file("$mergedfile")) {
+        serv_pcap($mergedfile,$array["sessionid"]);
+    }
 
     unset ($array);
-    return $out;
+    exit(0);
 }
 
 function mainHeading() {
@@ -837,6 +834,13 @@ function is_file_pcap($_file) {
     } else {
         return false;
     }
+}
+
+function serv_pcap($filepath,$cxid) {
+    header('Content-Type: application/pcap-capture');
+    header("Content-Disposition: attachment; filename=\"$cxid.pcap\"");
+    readfile("$filepath");
+    exit(0);
 }
 
 class siteDB {

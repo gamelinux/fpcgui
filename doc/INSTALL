@@ -79,3 +79,5 @@ mkdir /var/run/fpc-session-loader/
 touch /var/log/fpc-session-loader.log
 # chown user.user /var/run/fpc-session-loader/ /var/log/fpc-session-loader.log
 
+# sudo
+www-data ALL=NOPASSWD: /usr/sbin/tcpdump, /usr/bin/mergecap, /bin/mkdir
