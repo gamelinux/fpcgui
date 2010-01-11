@@ -54,9 +54,9 @@ start() {
       chmod 777 $LOG_DIR/$today
     fi
     if [ -n "$FILTER" ]; then
-      eval exec $LOGGER_PATH $OPTIONS -w $LOG_DIR/$today/$fname -i $INTERFACE $FILTER > /tmp/fpc-tcpdump.log 2>&1 &
+      eval exec $LOGGER_PATH $OPTIONS -w $LOG_DIR/$today/$fname.pcap -i $INTERFACE $FILTER > /tmp/fpc-tcpdump.log 2>&1 &
     else
-      eval exec $LOGGER_PATH $OPTIONS -w $LOG_DIR/$today/$fname -i $INTERFACE > /tmp/fpc-tcpdump.log 2>&1 &
+      eval exec $LOGGER_PATH $OPTIONS -w $LOG_DIR/$today/$fname.pcap -i $INTERFACE > /tmp/fpc-tcpdump.log 2>&1 &
     fi
     PID=$!
     if [ $? = 0 ]; then
