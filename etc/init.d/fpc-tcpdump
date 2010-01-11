@@ -48,14 +48,15 @@ start() {
     fi
 
     today=`date '+%Y-%m-%d'`
+    fname=`date +%s`
     if [ ! -d $LOG_DIR/$today ]; then
       mkdir $LOG_DIR/$today
       chmod 777 $LOG_DIR/$today
     fi
     if [ -n "$FILTER" ]; then
-      eval exec $LOGGER_PATH $OPTIONS -w $LOG_DIR/$today -i $INTERFACE $FILTER > /tmp/fpc-tcpdump.log 2>&1 &
+      eval exec $LOGGER_PATH $OPTIONS -w $LOG_DIR/$today/$fname -i $INTERFACE $FILTER > /tmp/fpc-tcpdump.log 2>&1 &
     else
-      eval exec $LOGGER_PATH $OPTIONS -w $LOG_DIR/$today -i $INTERFACE > /tmp/fpc-tcpdump.log 2>&1 &
+      eval exec $LOGGER_PATH $OPTIONS -w $LOG_DIR/$today/$fname -i $INTERFACE > /tmp/fpc-tcpdump.log 2>&1 &
     fi
     PID=$!
     if [ $? = 0 ]; then
