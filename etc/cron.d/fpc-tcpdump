@@ -1,9 +1,9 @@
 # Recommendation for crontab, add at least restart every night at 00
-# 00 00 * * * /etc/init.d/fpc-tcpdump restart
+# 00 00 * * * root /etc/init.d/fpc-tcpdump restart
 
 # run cleandisk (at least) every hour to make sure you are not 
 # running out of disk space on loaded systems/small disk etc.
-# 00 * * * * /etc/init.d/fpc-tcpdump cleandisk
+# 00 * * * * root /etc/init.d/fpc-tcpdump cleandisk
 # Note: If you are running out of disk space during a day,
 #       you need to restart more often, to break up the pcap
 #       files, so that cleandisk dont delete the "live" file!
