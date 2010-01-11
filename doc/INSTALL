@@ -2,9 +2,10 @@
 
 You need daemonlogger installed.
 http://www.snort.org/users/roesch/Site/Daemonlogger/Daemonlogger.html
+OR tcpdump or sancp to capture packets (pcap).
 
-You can use sancp or cxtracker for session data.
-# cxtracker
+You can use sancp(+sguil patches) or cxtracker for session data.
+# cxtracker is recommended :)
 cxtracker -i eth1 -d /nsm_data/sensor1/session/ -D
 
 # Prepare the mysql database
