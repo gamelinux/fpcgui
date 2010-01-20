@@ -30,7 +30,7 @@ $mrgtmpdir = "/tmp/fpcgui/";
 $tcpdump   = "/usr/sbin/tcpdump";
 $mergecap  = "/usr/bin/mergecap";
 $filetype  = "/usr/bin/file";
-$debug     = 1;
+$debug     = 0;
 
 // Variable Initialization
 $op         = sanitize("op");         if (empty($op))         $op = "search";
