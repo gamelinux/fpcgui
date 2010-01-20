@@ -17,6 +17,8 @@
 # Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
 # --------------------------------------------------------------------------
 
+$sensorname ="your-sensor";
+
 // fpcgui Database Settings
 $dbhost = "127.0.0.1";
 $dbuser = "fpcgui";
@@ -25,7 +27,7 @@ $dbname = "fpcgui";
 
 // Settings
 $maxRows   = 20;
-$fpcguidir = "/nsm_data/sensor/pcap";
+$fpcguidir = "/nsm_data/$sensorname/pcap";
 $mrgtmpdir = "/tmp/fpcgui/";
 $tcpdump   = "/usr/sbin/tcpdump";
 $mergecap  = "/usr/bin/mergecap";
@@ -248,8 +250,8 @@ function dumpDisplay() {
 }
 
 function mainHeading() {
-    
-    $out .= "<html><head><title>Full Packet Capture GUI by Edward Fjellskaal</title>";
+    global $sensorname; 
+    $out .= "<html><head><title>$sensorname - Full Packet Capture GUI by Edward Fjellskaal</title>";
     
     $out .= "
     
@@ -465,7 +467,7 @@ function doSearchQuery() {
 }
 
 function eventRowFormat($data) {
-
+    global $sensorname;
     //$out .= "<div>";
     $out .= "<table border=0 width=100% cellpadding=0 cellspacing=0>";
     $out .= "<tr onmouseover=\"this.style.cursor=&#39;hand&#39;\" ";
@@ -473,17 +475,6 @@ function eventRowFormat($data) {
     $out .= "onclick=\"SessionWindow('" . $data["sessionid"] . "','" . $data["ip_version"] .  "');\"";
     //$out .= "(&#39;?op=SessionQuery&obj=object1&id=" . $data["sessionid"] . "&s=" . $data["ip_version"] . "&#39;)";
     $out .= ">";
-    
-        // Sensor
-        $out .= "</td><td width=30 valign=middle align=center>";
-
-                //$out .= "<div style=\"font-size: 10px;\">" . $data["cnt"] . "</div>";
-        $out .= "<div style=\"font-size: 10px; color: #DEDEDE\">" . $data["sessionid"] . "</div>";
-                $out .= "<div style=\"font-size: 10px; text-align: center;\">Sensor</div>";
-
-        $out .= "</td><td width=12 valign=top>";
-
-                $out .= "&nbsp;";
 
     // Source IP
     $out .= "</td><td width=80 valign=middle align=center>";
