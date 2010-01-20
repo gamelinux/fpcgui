@@ -1,14 +1,46 @@
 #
+#  ______   ______   _____   _____   ___   ___ ____ (tm)
+# |  ____| |  ___ | /  ___\ / ____\  | |   | | |  |
+# |  |__   | |___|| | /     | |      | |   | | |  |
+# |  ___|  | _____| | |     | | ___  | |   | | |  |
+# |  |     |  |     | \____ | ||_  | | \___/ | |  |
+# |__|     |__|     \_____/ \_____/   \_____/  |__|
+#
+# Full Packet Capture Graphical User Interface (tm)
+# Copyright (C) 2009, Edward Fjellskål
+#           <edward.fjellskaal@redpill-linpro.com>
+########################################################
 
-You need daemonlogger installed.
-http://www.snort.org/users/roesch/Site/Daemonlogger/Daemonlogger.html
-OR tcpdump or sancp to capture packets (pcap).
+ You need tcpdump, daemonlogger or sancp installed for 
+ packet capture (in pcap format).
+ You also need cxtracker or sancp+sguil-paches for
+ session metadata capture.
+ MySQL is used to store session metadata.
+ Apache+PHP is used for GUI.
 
-You can use sancp(+sguil patches) or cxtracker for session data.
-# cxtracker is recommended :)
-cxtracker -i eth1 -d /nsm_data/sensor1/session/ -D
+ Some stuff that you should do:
 
-# Prepare the mysql database
+# mkdir -p /nsm_data/<your sensor>/session/
+# mkdir -p /nsm_data/<your sensor>/pcap/
+# adduser --system --home /nsm_data/ --no-create-home --disabled-password --disabled-login nsm
+# addgroup --system nsm
+# adduser nsm nsm
+# chown -R nsm.nsm /nsm_data/
+
+ Install mysql-server, apache2 (with php and php-mysql)
+
+ You can use sancp(+sguil patches) or the prefered cxtracker for
+ session data.
+
+ Install make, and gcc and libpcap-dev (apt-get install build-essential libpcap-dev)
+
+# git clone git://github.com/gamelinux/cxtracker.git
+# cd cxtracker/src/ && make
+# ./cxtracker -i ethX -d /nsm_data/<your sensor>/session/ -u nsm -g nsm -D
+
+ Install and prepare the mysql database. Edit text below, and cut and paste?
+
+---------8<---------
 GRANT USAGE ON *.* TO 'fpcgui'@'localhost' identified by 'fpcgui';
 GRANT ALL ON fpcgui.* TO 'fpcgui'@'localhost' IDENTIFIED BY 'fpcgui';
 FLUSH PRIVILEGES;
@@ -69,15 +101,16 @@ BEGIN
 END;
 //
 DELIMITER ;
+---------8<---------
+
+ Edit fpc-session-loader.pl to match db user and password if needed.
+ Some files and dirs that should be writeable:
+
+# mkdir /var/run/fpc-session-loader/
+# touch /var/log/fpc-session-loader.log
+# chown nsm.nsm /var/run/fpc-session-loader/ /var/log/fpc-session-loader.log
+# sudo -u nsm perl fpc-session-loader.pl --dir /nsm_data/<your sensor>/session/ --daemon
 
 
-
-# Edit fpc-session-loader.pl to match db user and password if needed.
-
-# Some files and dirs that should be writeable:
-mkdir /var/run/fpc-session-loader/
-touch /var/log/fpc-session-loader.log
-# chown user.user /var/run/fpc-session-loader/ /var/log/fpc-session-loader.log
-
-# sudo
+# sudo ?
 www-data ALL=NOPASSWD: /usr/sbin/tcpdump, /usr/bin/mergecap, /bin/mkdir
