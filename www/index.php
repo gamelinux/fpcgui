@@ -24,11 +24,13 @@ $dbpass = "fpcgui";
 $dbname = "fpcgui";
 
 // Settings
-$maxRows = 20;
-$fpcguidir = "/nsm_data/hostname/dailylogs";
-$mrgtmpdir = "/tmp/merge/";
-$tcpdump = "/usr/sbin/tcpdump";
-$mergecap = "/usr/bin/mergecap";
+$maxRows   = 20;
+$fpcguidir = "/nsm_data/sensor/pcap";
+$mrgtmpdir = "/tmp/fpcgui/";
+$tcpdump   = "/usr/sbin/tcpdump";
+$mergecap  = "/usr/bin/mergecap";
+$filetype  = "/usr/bin/file";
+$debug     = 1;
 
 // Variable Initialization
 $op         = sanitize("op");         if (empty($op))         $op = "search";
@@ -52,8 +54,8 @@ if ($notdstip) $dstip = strip_not($dstip);
 if ($notsrcport)  $srcport = strip_not($srcport);
 if ($notdstport)  $dstport = strip_not($dstport);
 
+check_sain();
 // OP Director
-
 switch ($op) {
 
     case "search":
@@ -77,6 +79,21 @@ switch ($op) {
 echo mainHeading() . $out . mainFooting();
 
 // Operational Functions
+
+function check_sain() {
+    if ($debug == 0) return; 
+    global $mergecap, $tcpdump, $filetype;
+    if (!file_exists($mergecap)) {
+        echo "$mergecap is missing!<br>";
+        exit(1);
+    }else if (!file_exists($tcpdump)) {
+        echo "$tcpdump is missing!<br>";
+        exit(1);
+    }else if (!file_exists($filetype)) {
+        echo "$filetype is missing!<br>";
+        exit(1);
+    }
+}
 
 function mainDisplay() {
     global $major, $minor, $build, $pollTime, $dbname, $start_date, $end_date;
@@ -158,6 +175,7 @@ function mainDisplay() {
 }
 
 function dumpDisplay() {
+    global $debug;
     global $fpcguidir, $tcpdump, $ipv, $mergecap, $mrgtmpdir;
     $dump = "";
    
@@ -170,10 +188,12 @@ function dumpDisplay() {
     while ( $sudate <= $eudate ) {
         // Should now find all pcaps in dir!
         $tmpdir = "$fpcguidir/" . date("Y-m-d", $sudate) . "/";
+        if ($debug!=0) echo "Pcaps: $tmpdir <br>";
         $pcap = list_pcaps_in_dir("$tmpdir");
         if ($pcap) {
             // make the dir to dump pcap carvings
             $mkdircmd = "sudo mkdir -p $mrgtmpdir/" . $array["sessionid"];
+            if ($debug!=0) echo "mkdir: $mkdircmd <br>";
             shell_exec("$mkdircmd &");
             for ($i = 0; $i < count($pcap); $i++) {
                 // carve out the session from the pcap files
@@ -187,15 +207,22 @@ function dumpDisplay() {
                 }
                 $dump .= "and proto " . $array["ip_proto"];
                 $cmd = escapeshellcmd($dump);
+                if ($debug!=0) echo "TCPDUMP CMD: $cmd <br>";
                 $r1 = shell_exec("$cmd");
             }
         }
-    $sudate += 86400;
+        $sudate += 86400;
+    }
+    if (!$pcap) {
+        echo "No pcaps found! Exit! $pcap<br>";
+        exit(1);
     }
     // mergecap -w $outfile file1 file2...
     // for files in merged-pcap do...
     $tmpdir2 = $mrgtmpdir . "/" . $array["sessionid"] . "/";
+    if ($debug!=0) echo "Merge dir:$tmpdir2 <br>";
     $mpcap = list_pcaps_in_dir("$tmpdir2");
+    if ($debug!=0) echo "Merge pcaps:$mpcap <br>";
     if ($mpcap) {
         $flist = "";
         for ($i = 0; $i < count($mpcap); $i++) {
@@ -209,7 +236,11 @@ function dumpDisplay() {
     }
 
     if ($mergedfile && is_file("$mergedfile")) {
-        serv_pcap($mergedfile,$array["sessionid"]);
+        if ($debug == 0) {
+            serv_pcap($mergedfile,$array["sessionid"]);
+        } else {
+            echo "Merged file: $mergedfile <br>";
+        }
     }
 
     unset ($array);
@@ -806,6 +837,7 @@ function getVar($in) {
 }
 
 function list_pcaps_in_dir($_dir) {
+    global $debug;
     if (is_dir($_dir)) {
         $files = scandir($_dir);
         $i = 0;
@@ -814,14 +846,15 @@ function list_pcaps_in_dir($_dir) {
             $dirfile =  "$_dir" . "$file";
             if (is_file("$dirfile")) {
                 $cmd = escapeshellcmd($dirfile);
-                $output = shell_exec("file \"$cmd\"");
+                $output = shell_exec("sudo file \"$cmd\"");
+                if ($debug!=0) echo "File: $output <br>";
                 if (is_file_pcap("$output")) {
                     $array[$i] = $file;
                     $i++;
                 }
             }
         }
-        return $array[$i];
+        return $array;
     } else {
         return false;
     }
@@ -829,7 +862,7 @@ function list_pcaps_in_dir($_dir) {
 
 function is_file_pcap($_file) {
     // " tcpdump capture file "
-    if (preg_match("/ tcpdump capture file /",$_file)) {
+    if (preg_match("/tcpdump capture file/",$_file)) {
         return true;
     } else {
         return false;

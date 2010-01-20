@@ -35,12 +35,12 @@ if [ ! -d $LOG_DIR/$HOSTNAME ]; then
   chown -R $USER.$GROUP $LOG_DIR/$HOSTNAME 
   chmod 777 $LOG_DIR $LOG_DIR/$HOSTNAME
 fi
-if [ ! -d $LOG_DIR/$HOSTNAME/dailylogs ]; then
-  mkdir $LOG_DIR/$HOSTNAME/dailylogs
-  chown -R $USER.$GROUP $LOG_DIR/$HOSTNAME/dailylogs
-  chmod 777 $LOG_DIR/$HOSTNAME/dailylogs
+if [ ! -d $LOG_DIR/$HOSTNAME/pcap ]; then
+  mkdir $LOG_DIR/$HOSTNAME/pcap
+  chown -R $USER.$GROUP $LOG_DIR/$HOSTNAME/pcap
+  chmod 777 $LOG_DIR/$HOSTNAME/pcap
 fi
-LOG_DIR="$LOG_DIR/$HOSTNAME/dailylogs"
+LOG_DIR="$LOG_DIR/$HOSTNAME/pcap"
 
 start() {
  if [ ! -f $PIDFILE ]; then 

@@ -32,12 +32,12 @@ if [ ! -d $LOG_DIR/$HOSTNAME ]; then
   chown -R $USER.$GROUP $LOG_DIR/$HOSTNAME
   chmod 777 $LOG_DIR $LOG_DIR/$HOSTNAME
 fi
-if [ ! -d $LOG_DIR/$HOSTNAME/dailylogs ]; then
-  mkdir $LOG_DIR/$HOSTNAME/dailylogs
-  chown -R $USER.$GROUP $LOG_DIR/$HOSTNAME/dailylogs
-  chmod 777 $LOG_DIR/$HOSTNAME/dailylogs
+if [ ! -d $LOG_DIR/$HOSTNAME/pcap ]; then
+  mkdir $LOG_DIR/$HOSTNAME/pcap
+  chown -R $USER.$GROUP $LOG_DIR/$HOSTNAME/pcap
+  chmod 777 $LOG_DIR/$HOSTNAME/pcap
 fi
-LOG_DIR="$LOG_DIR/$HOSTNAME/dailylogs"
+LOG_DIR="$LOG_DIR/$HOSTNAME/pcap"
 
 start() {
  if [ ! -f $PIDFILE ]; then 
@@ -100,7 +100,7 @@ restart() {
   else
     echo "Error: $PIDFILE does not exist."
     echo "Checking for old process with ps."
-    res=`$PS | $GREP "$LOGGER_PATH" | $GREP "$HOSTNAME" | $GREP "dailylogs" | $GREP -v grep | awk '{print $1}'`
+    res=`$PS | $GREP "$LOGGER_PATH" | $GREP "$HOSTNAME" | $GREP "pcap" | $GREP -v grep | awk '{print $1}'`
     if [ $res ]; then
 	echo "Old log packets proccess found at pid $res, killing."
 	kill $res

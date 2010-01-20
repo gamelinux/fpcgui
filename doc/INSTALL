@@ -17,6 +17,8 @@
  session metadata capture.
  MySQL is used to store session metadata.
  Apache+PHP is used for GUI.
+ mergcap is used to merge pcaps (ships with wireshark/tshark)
+ (Debian/Ubuntu: wireshark-common: /usr/bin/mergecap)
 
  Some stuff that you should do:
 
@@ -112,5 +114,16 @@ DELIMITER ;
 # sudo -u nsm perl fpc-session-loader.pl --dir /nsm_data/<your sensor>/session/ --daemon
 
 
-# sudo ?
-www-data ALL=NOPASSWD: /usr/sbin/tcpdump, /usr/bin/mergecap, /bin/mkdir
+ To get the webgui to work, you need to move www/index.php and www/bluegrade.png
+ to a dir where apache can reach it (/var/www/fpcgui/ maybe?)
+ You also need to edit the top section of index.php to fit your environment.
+ If you have any problems, try to set $debug to 1.
+
+ An easy way to get around lots of permissions:
+ edit your sodo file (visudo) and add :
+----8<----
+www-data ALL=NOPASSWD: /usr/sbin/tcpdump, /usr/bin/mergecap, /bin/mkdir, /usr/bin/file
+----8<----
+
+
+
