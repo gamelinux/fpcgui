@@ -216,7 +216,12 @@ function dumpDisplay() {
         $sudate += 86400;
     }
     if (!$pcap) {
-        echo "No pcaps found! Exit! $pcap<br>";
+        echo "No pcaps found!<br>"; 
+        echo "Last dir searched: $tmpdir ";
+        if (!is_dir($tmpdir)) echo "*Does NOT exists!*";
+        echo "<br><br>";
+        echo "Maybe the session is too old, and you system cant store that much data?<br>";
+        echo "Or maybe there is something wrong with your FPCGUI setup? (Try turning on \$debug?)";
         exit(1);
     }
     // mergecap -w $outfile file1 file2...
